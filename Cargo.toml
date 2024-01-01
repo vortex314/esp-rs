@@ -6,25 +6,23 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-esp32-hal= {version="0.17.0",default-features=false,features=["xtal-40mhz","rt","vectored","async"]}
-# esp-hal-common={version="0.14.1",features=["xtal-40mhz","vectored"]}
-# esp-hal-procmacros ={ version= "0.8.0", features =["interrupt"]}
-# hal = { package = "esp32-hal",version = "0.17.0",features=["xtal-40mhz","rt","vectored"] }
-#esp-backtrace = { version = "0.9.0", features = ["esp32", "panic-handler", "exception-handler", "print-uart"] }
-#esp-println = { version = "0.8.0", features = ["esp32","log"] }
+esp32-hal= {version="0.16.0",default-features=false,features=["xtal-40mhz","rt","vectored","async","eh1","embassy-executor-thread","embassy-time-timg0"]}
+esp-backtrace = { version = "0.9.0", features = ["esp32", "panic-handler", "exception-handler", "print-uart"] }
+esp-println = { version = "0.7.0", features = ["esp32","log"] }
 log = { version = "0.4.18" }
-# esp-alloc = { version = "0.3.0" }
-esp-wifi  = { version = "0.1.1", features = ["esp32", "wifi","xtal-40mhz"] }
+embassy-sync = { version = "0.3.0", default-features = false, features = [] }
+esp-alloc = { version = "0.3.0" }
+esp-wifi  = { version = "0.1.1", features = ["esp32", "wifi"] }
 # smoltcp = { version = "0.10.0", default-features=false, features = ["proto-igmp", "proto-ipv4", "socket-tcp", "socket-icmp", "socket-udp", "medium-ethernet", "proto-dhcpv4", "socket-raw", "socket-dhcpv4"] }
 # embedded-svc = { version = "0.26.4", default-features = false, features = [] }
-# embedded-io = "0.6.1"
+embedded-io = "0.4.0"
 # heapless = { version = "0.8.0", default-features = false }
-# embassy-futures="*"
+embassy-futures="*"
 # embassy-sync="*"
-# embassy-time="0.2.0"
+embassy-time="0.1.5"
 futures = { version = "0.3.29", default-features = false, features = ["async-await"] }
-# embedded-hal="*"
-# embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers","arch-xtensa","nightly"] }
+embedded-hal="*"
+embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers"] }
 
 
 [features]

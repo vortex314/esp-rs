@@ -5,8 +5,11 @@ use alloc::rc::Rc;
 use alloc::sync::Arc;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::DynamicSender;
+use embassy_time::Instant;
+use embassy_time::Duration;
+use embassy_time::with_timeout;
 
-use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::v2::OutputPin;
 use futures::Future;
 
 use core::cell::RefCell;
@@ -14,7 +17,6 @@ use core::pin::Pin;
 use core::task::Context;
 use core::task::Poll;
 use core::task::Waker;
-use core::time::Duration;
 
 //use embassy_futures::join::join;
 use embassy_futures::select::select;
@@ -32,13 +34,13 @@ pub struct Led {
     channel: Rc<RefCell<Channel<NoopRawMutex, LedCmd, 3>>>,
     state: LedCmd,
     interval_ms: u64,
-    pin: Box<dyn OutputPin>,
+    pin: Box<dyn OutputPin<Error=()>>,
     pin_high: bool,
     scheduler: TimerScheduler,
 }
 
 impl Led {
-    pub fn new(pin: impl OutputPin + 'static, capacity: usize) -> Self {
+    pub fn new(pin: impl OutputPin<Error=()> + 'static, _capacity: usize) -> Self {
         Led {
             channel:Rc::new(RefCell::new(Channel::<NoopRawMutex, LedCmd, 3>::new())),
             state: LedCmd::On,
@@ -50,10 +52,10 @@ impl Led {
     }
     fn toggle(&mut self) {
         if self.pin_high {
-            self.pin.set_low();
+            let _ = self.pin.set_low();
             self.pin_high = false;
         } else {
-            self.pin.set_high();
+            let _ = self.pin.set_high();
             self.pin_high = true;
         }
     }
@@ -74,11 +76,11 @@ impl Led {
             info!("Led run {:?}", cmd);
             match cmd {
                 LedCmd::On => {
-                    self.pin.set_high();
+                    let _ = self.pin.set_high();
                     self.pin_high = true;
                 }
                 LedCmd::Off => {
-                    self.pin.set_low();
+                    let _ = self.pin.set_low();
                     self.pin_high = false;
                 }
                 LedCmd::Blink(intv) => {
