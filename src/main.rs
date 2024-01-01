@@ -1,9 +1,11 @@
 #![no_std]
 #![no_main]
 #![allow(unused_imports)]
+#![feature(type_alias_impl_trait)]
 
 mod limero;
 mod led;
+use embassy_futures::select;
 use led::*;
 extern crate alloc;
 use core::mem::MaybeUninit;
@@ -23,6 +25,8 @@ use esp32_hal::{
     IO,
 };
 
+use crate::limero::Sink;
+
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
@@ -35,12 +39,13 @@ fn init_heap() {
     }
 }
 
+#[embassy_executor::task]
+async fn writer() {
 
+}
 
-/*#[embassy_executor::main]
-async fn main(spawner: Spawner) {*/
-#[entry]
-fn main() -> ! {
+#[main]
+async fn main(spawner: Spawner) {
     init_heap();
     esp_println::logger::init_logger_from_env();
     println!("main started");
@@ -54,11 +59,11 @@ fn main() -> ! {
     embassy::init(&clocks, timer_group0.timer0);
 
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-    let mut led = io.pins.gpio2.into_push_pull_output();
-    led.set_low().unwrap();
-    let led_task = Led::new(led, 3);
-    let mut spawner = Spawner::new();
-    spawner.spawn(led_task.run()).unwrap();
+    let mut led_pin = io.pins.gpio2.into_push_pull_output();
+    led_pin.set_low().unwrap();
+    let mut led_task = Led::new(led_pin.degrade(), 3);
+    led_task.handler().handle(LedCmd::Blink(100));
+    led_task.run().await;
 
     let mut delay = Delay::new(&clocks);
 

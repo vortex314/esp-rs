@@ -22,7 +22,7 @@ embassy-futures="*"
 embassy-time="0.1.5"
 futures = { version = "0.3.29", default-features = false, features = ["async-await"] }
 embedded-hal="*"
-embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers"] }
+embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers","nightly"] }
 
 
 [features]

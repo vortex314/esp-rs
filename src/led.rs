@@ -10,6 +10,10 @@ use embassy_time::Duration;
 use embassy_time::with_timeout;
 
 use embedded_hal::digital::v2::OutputPin;
+use esp32_hal::gpio::AnyPin;
+use esp32_hal::gpio::GpioPin;
+use esp32_hal::gpio::Output;
+use esp32_hal::gpio::PushPull;
 use futures::Future;
 
 use core::cell::RefCell;
@@ -34,18 +38,18 @@ pub struct Led {
     channel: Rc<RefCell<Channel<NoopRawMutex, LedCmd, 3>>>,
     state: LedCmd,
     interval_ms: u64,
-    pin: Box<dyn OutputPin<Error=()>>,
+    pin: AnyPin<Output<PushPull>>,
     pin_high: bool,
     scheduler: TimerScheduler,
 }
 
 impl Led {
-    pub fn new(pin: impl OutputPin<Error=()> + 'static, _capacity: usize) -> Self {
+    pub fn new(pin: AnyPin<Output<PushPull>>, _capacity: usize) -> Self {
         Led {
             channel:Rc::new(RefCell::new(Channel::<NoopRawMutex, LedCmd, 3>::new())),
             state: LedCmd::On,
             interval_ms: 1000,
-            pin: Box::new(pin),
+            pin,
             pin_high: false,
             scheduler: TimerScheduler::new(),
         }
@@ -68,25 +72,32 @@ impl Led {
             info!("Led run to {:?} msec", timeout.as_millis() );
             let cmd_opt =  with_timeout(timeout, self.channel.borrow().receiver().receive()).await;
             if cmd_opt.is_err() { // timeout
-                self.toggle();
-                self.scheduler.reload();
-                continue;
+                match self.state {
+                    LedCmd::On => {}
+                    LedCmd::Off => {}
+                    LedCmd::Blink(x)=> {self.toggle();
+                        self.scheduler.reload()}
+                }
+            } else {
+                let cmd = cmd_opt.unwrap();
+                self.state = cmd.clone();
+                info!("Led run {:?}", cmd);
+                match cmd {
+                    LedCmd::On => {
+                        let _ = self.pin.set_high();
+                        self.pin_high = true;
+                    }
+                    LedCmd::Off => {
+                        let _ = self.pin.set_low();
+                        self.pin_high = false;
+                    }
+                    LedCmd::Blink(intv) => {
+                        self.interval_ms = intv as u64;
+                        self.scheduler.set_interval(1,Duration::from_millis(self.interval_ms));
+                    }
+                }
             }
-            let cmd = cmd_opt.unwrap();
-            info!("Led run {:?}", cmd);
-            match cmd {
-                LedCmd::On => {
-                    let _ = self.pin.set_high();
-                    self.pin_high = true;
-                }
-                LedCmd::Off => {
-                    let _ = self.pin.set_low();
-                    self.pin_high = false;
-                }
-                LedCmd::Blink(intv) => {
-                    self.interval_ms = intv as u64;
-                }
-            }
+
         }
     }
 }

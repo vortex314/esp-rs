@@ -250,6 +250,11 @@ impl TimerScheduler {
     pub fn get_timer(&self, id: u8) -> Option<&Timer> {
         self.timers.get(&id)
     }
+    pub fn set_interval(&mut self, id: u8, interval: Duration) {
+        if let Some(timer) = self.timers.get_mut(&id) {
+            timer.interval = Some(interval);
+        }
+    }
 
     pub fn expired_list(&mut self) -> Vec<u8> {
         let mut expired = Vec::new();
