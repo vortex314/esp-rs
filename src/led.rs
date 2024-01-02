@@ -1,13 +1,13 @@
-use crate::limero::*;
 use crate::limero::Timer as MyTimer;
+use crate::limero::*;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::sync::Arc;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::DynamicSender;
-use embassy_time::Instant;
-use embassy_time::Duration;
 use embassy_time::with_timeout;
+use embassy_time::Duration;
+use embassy_time::Instant;
 
 use embedded_hal::digital::v2::OutputPin;
 use esp32_hal::gpio::AnyPin;
@@ -46,7 +46,7 @@ pub struct Led {
 impl Led {
     pub fn new(pin: AnyPin<Output<PushPull>>, _capacity: usize) -> Self {
         Led {
-            channel:Rc::new(RefCell::new(Channel::<NoopRawMutex, LedCmd, 3>::new())),
+            channel: Rc::new(RefCell::new(Channel::<NoopRawMutex, LedCmd, 3>::new())),
             state: LedCmd::On,
             interval_ms: 1000,
             pin,
@@ -65,18 +65,25 @@ impl Led {
     }
     pub async fn run(&mut self) {
         info!("Led run");
-        self.scheduler.add_timer(MyTimer::interval(1,Instant::now()+Duration::from_millis(1000),Duration::from_millis(self.interval_ms)));
+        self.scheduler.add_timer(MyTimer::interval(
+            1,
+            Instant::now() + Duration::from_millis(1000),
+            Duration::from_millis(self.interval_ms),
+        ));
         loop {
-            let timeout_opt  = self.scheduler.soonest();
-            let timeout = timeout_opt.unwrap_or( Duration::from_millis(100));
-            info!("Led run to {:?} msec", timeout.as_millis() );
-            let cmd_opt =  with_timeout(timeout, self.channel.borrow().receiver().receive()).await;
-            if cmd_opt.is_err() { // timeout
+            let timeout_opt = self.scheduler.soonest();
+            let timeout = timeout_opt.unwrap_or(Duration::from_millis(100));
+            info!("Led run to {:?} msec", timeout.as_millis());
+            let cmd_opt = with_timeout(timeout, self.channel.borrow().receiver().receive()).await;
+            if cmd_opt.is_err() {
+                // timeout
                 match self.state {
                     LedCmd::On => {}
                     LedCmd::Off => {}
-                    LedCmd::Blink(x)=> {self.toggle();
-                        self.scheduler.reload()}
+                    LedCmd::Blink(_x) => {
+                        self.toggle();
+                        self.scheduler.reload()
+                    }
                 }
             } else {
                 let cmd = cmd_opt.unwrap();
@@ -93,11 +100,11 @@ impl Led {
                     }
                     LedCmd::Blink(intv) => {
                         self.interval_ms = intv as u64;
-                        self.scheduler.set_interval(1,Duration::from_millis(self.interval_ms));
+                        self.scheduler
+                            .set_interval(1, Duration::from_millis(self.interval_ms));
                     }
                 }
             }
-
         }
     }
 }
@@ -111,7 +118,7 @@ impl Handler<LedCmd> for Led {
 impl Sink<LedCmd> for Led {
     fn handler(&self) -> Box<dyn Handler<LedCmd>> {
         struct LedHandler {
-            channel: Rc<RefCell<Channel<NoopRawMutex,LedCmd,3>>>,
+            channel: Rc<RefCell<Channel<NoopRawMutex, LedCmd, 3>>>,
         }
         impl<'a> Handler<LedCmd> for LedHandler {
             fn handle(&self, cmd: LedCmd) {
