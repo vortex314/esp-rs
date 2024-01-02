@@ -20,7 +20,7 @@ use embassy_time::{Duration, Timer};
 use esp32_hal::{
     clock::ClockControl,
     embassy::{self},
-    peripherals::Peripherals,
+    peripherals::{self,Peripherals},
     prelude::*,
     timer::TimerGroup,
     Delay,
@@ -62,13 +62,10 @@ async fn main(spawner: Spawner) {
 
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
     let mut led_pin = io.pins.gpio2.into_push_pull_output();
-    let mut button_pin = io.pins.gpio0.into_pull_down_input();
-    button_pin.listen(Event::FallingEdge);
-    interrupt::enable(Peripherals::Interrupt::GPIO, interrupt::Priority::Priority2).unwrap();
-
+    let mut button_pin = io.pins.gpio0.into_pull_down_input();   
+    let mut button_task = Button::new(button_pin);
 
     let mut led_task = Led::new(led_pin.degrade(), 3);
-    let mut button_task = Button::new(button_pin.degrade());
     led_task.handler().handle(LedCmd::Blink(100));
     led_task.run().await;
 
