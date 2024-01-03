@@ -24,6 +24,7 @@ futures = { version = "0.3.29", default-features = false, features = ["async-awa
 embedded-hal="*"
 embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers","nightly"] }
 critical-section="*"
+static_cell = {version = "*", default-features = false, features = ["nightly"] } 
 
 [features]
 default=["embassy"]

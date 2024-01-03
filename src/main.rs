@@ -8,6 +8,8 @@ mod led;
 use led::*;
 mod button;
 use button::*;
+mod serial;
+use serial::*;
 extern crate alloc;
 use core::mem::MaybeUninit;
 use esp_backtrace as _;
@@ -25,6 +27,8 @@ use esp32_hal::{
     timer::TimerGroup,
     Delay,
     IO, gpio::Event, interrupt,
+    uart::{config::AtCmdConfig, UartRx, UartTx},
+    Uart,
 };
 
 use crate::limero::Sink;
@@ -68,6 +72,14 @@ async fn main(spawner: Spawner) {
     let mut led_task = Led::new(led_pin.degrade(), 3);
     led_task.handler().handle(LedCmd::Blink(100));
     led_task.run().await;
+
+    let mut uart0 = Uart::new(peripherals.UART0, &clocks);
+    uart0.set_at_cmd(AtCmdConfig::new(None, None, None, AT_CMD, None));
+    uart0
+        .set_rx_fifo_full_threshold(READ_BUF_SIZE as u16)
+        .unwrap();
+    let (tx, rx) = uart0.split();
+    let mut serial = Serial::new(tx, rx, io.pins.gpio1, io.pins.gpio3);
 
     let mut delay = Delay::new(&clocks);
 
