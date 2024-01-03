@@ -51,7 +51,7 @@ async fn writer() {
 }
 
 #[main]
-async fn main(spawner: Spawner) {
+async fn main(_spawner: Spawner) {
     init_heap();
     esp_println::logger::init_logger_from_env();
     println!("main started");
@@ -65,21 +65,19 @@ async fn main(spawner: Spawner) {
     embassy::init(&clocks, timer_group0.timer0);
 
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-    let mut led_pin = io.pins.gpio2.into_push_pull_output();
-    let mut button_pin = io.pins.gpio0.into_pull_down_input();   
-    let mut button_task = Button::new(button_pin);
+    let  led_pin = io.pins.gpio2.into_push_pull_output();
+    let  button_pin = io.pins.gpio0.into_pull_down_input();   
+    let  button_task = Button::new(button_pin);
 
     let mut led_task = Led::new(led_pin.degrade(), 3);
     led_task.handler().handle(LedCmd::Blink(100));
     led_task.run().await;
+    button_task.run().await;
 
-    let mut uart0 = Uart::new(peripherals.UART0, &clocks);
-    uart0.set_at_cmd(AtCmdConfig::new(None, None, None, AT_CMD, None));
-    uart0
-        .set_rx_fifo_full_threshold(READ_BUF_SIZE as u16)
-        .unwrap();
-    let (tx, rx) = uart0.split();
-    let mut serial = Serial::new(tx, rx, io.pins.gpio1, io.pins.gpio3);
+    let  uart0 = Uart::new(peripherals.UART0, &clocks);
+    let mut serial_task = Serial::new(uart0);
+    serial_task.run().await;
+
 
     let mut delay = Delay::new(&clocks);
 
