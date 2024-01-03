@@ -73,7 +73,6 @@ impl Led {
         loop {
             let timeout_opt = self.scheduler.soonest();
             let timeout = timeout_opt.unwrap_or(Duration::from_millis(100));
-            info!("Led run to {:?} msec", timeout.as_millis());
             let cmd_opt = with_timeout(timeout, self.channel.borrow().receiver().receive()).await;
             if cmd_opt.is_err() {
                 // timeout
@@ -122,7 +121,7 @@ impl Sink<LedCmd> for Led {
         }
         impl<'a> Handler<LedCmd> for LedHandler {
             fn handle(&self, cmd: LedCmd) {
-                let _ = self.channel.borrow_mut().try_send(cmd.clone());
+                let _ = self.channel.borrow().try_send(cmd.clone());
             }
         }
         Box::new(LedHandler {

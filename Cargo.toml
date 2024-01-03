@@ -6,7 +6,7 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
-esp32-hal= {version="0.16.0",default-features=false,features=["xtal-40mhz","rt","vectored","async","eh1","embassy-executor-thread","embassy-time-timg0"]}
+esp32-hal= {version="0.16.0",default-features=false,features=["xtal-40mhz","rt","vectored","eh1","embassy-executor-thread","embassy-time-timg0"]}
 esp-backtrace = { version = "0.9.0", features = ["esp32", "panic-handler", "exception-handler", "print-uart"] }
 esp-println = { version = "0.7.0", features = ["esp32","log"] }
 log = { version = "0.4.18" }

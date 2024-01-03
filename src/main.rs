@@ -4,18 +4,20 @@
 #![feature(type_alias_impl_trait)]
 
 mod limero;
+use limero::*;
 mod led;
 use led::*;
 mod button;
 use button::*;
 mod serial;
+use log::info;
 use serial::*;
 extern crate alloc;
 use core::mem::MaybeUninit;
 use esp_backtrace as _;
 use esp_println::println;
 
-use embassy_futures::select;
+use embassy_futures::select::{self, select3};
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -67,16 +69,28 @@ async fn main(_spawner: Spawner) {
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
     let  led_pin = io.pins.gpio2.into_push_pull_output();
     let  button_pin = io.pins.gpio0.into_pull_down_input();   
-    let  button_task = Button::new(button_pin);
+    let  mut button_task = Button::new(button_pin);
 
     let mut led_task = Led::new(led_pin.degrade(), 3);
-    led_task.handler().handle(LedCmd::Blink(100));
-    led_task.run().await;
-    button_task.run().await;
+    led_task.handler().handle(LedCmd::Blink(1000));
+    //led_task.run().await;
+    // button_task.run().await;
 
     let  uart0 = Uart::new(peripherals.UART0, &clocks);
-    let mut serial_task = Serial::new(uart0);
-    serial_task.run().await;
+    let mut _serial_task = Serial::new(uart0);
+
+    let  mut pressed_led_on = Mapper::new(move |x| match x {
+        ButtonEvent::Pressed => {
+            info!("Button pressed : from main ");
+            LedCmd::Blink(100)
+        },
+        ButtonEvent::Released => LedCmd::Blink(50),
+    });
+
+    button_task.add_handler(pressed_led_on.handler());
+    pressed_led_on.add_handler(led_task.handler());
+
+    select3(led_task.run(), button_task.run(),_serial_task.run()).await;
 
 
     let mut delay = Delay::new(&clocks);

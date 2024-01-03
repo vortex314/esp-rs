@@ -1,13 +1,15 @@
-use core::{fmt::Write, panic::PanicInfo, cell::RefCell};
-use embassy_sync::{signal::Signal, blocking_mutex::raw::NoopRawMutex};
+use core::{cell::RefCell, fmt::Write, panic::PanicInfo};
+use critical_section::Mutex;
+use embassy_futures::yield_now;
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, signal::Signal};
 use esp32_hal::{
+    interrupt,
     peripherals::{self, UART0},
     prelude::*,
     timer::Timer,
     uart::{config::AtCmdConfig, UartRx, UartTx},
-    Uart, IO, interrupt
+    Uart, IO,
 };
-use critical_section::Mutex;
 use nb::block;
 
 pub enum SerialCmd<'a> {
@@ -19,8 +21,8 @@ pub enum SerialEvent<'a> {
 }
 
 pub struct Serial {
-   // tx: UartTx<'a, UART0>,
-   // rx: UartRx<'a, UART0>,
+    // tx: UartTx<'a, UART0>,
+    // rx: UartRx<'a, UART0>,
     tx_buf: [u8; 256],
     tx_buf_len: usize,
     rx_buf: [u8; 256],
@@ -28,7 +30,6 @@ pub struct Serial {
 }
 
 static SERIAL: Mutex<RefCell<Option<Uart<UART0>>>> = Mutex::new(RefCell::new(None));
-
 
 impl Serial {
     pub fn new(mut uart0: Uart<'static, UART0>) -> Self {
@@ -43,13 +44,12 @@ impl Serial {
             interrupt::Priority::Priority2,
         )
         .unwrap();
-    
-    
+
         critical_section::with(|cs| SERIAL.borrow_ref_mut(cs).replace(uart0));
         // let (tx, rx) = uart0.split();
         Self {
-        //    tx,
-        //    rx,
+            //    tx,
+            //    rx,
             tx_buf: [0; 256],
             tx_buf_len: 0,
             rx_buf: [0; 256],
@@ -57,16 +57,14 @@ impl Serial {
         }
     }
 
-
     pub async fn run(&mut self) {
         loop {
             critical_section::with(|cs| {
                 let mut serial = SERIAL.borrow_ref_mut(cs);
                 let serial = serial.as_mut().unwrap();
-                writeln!(serial, "Hello World! Send a single `#` character or send at least 30 characters and see the interrupts trigger.").ok();
+                //   writeln!(serial, "Hello World! Send a single `#` character or send at least 30 characters and see the interrupts trigger.").ok();
             });
-    
-     //       block!(timer0.wait()).unwrap();
+            yield_now().await;
         }
     }
 }
