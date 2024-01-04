@@ -4,6 +4,7 @@
 #![feature(type_alias_impl_trait)]
 
 mod limero;
+use alloc::vec;
 use limero::*;
 mod led;
 use led::*;
@@ -85,8 +86,21 @@ async fn main(_spawner: Spawner) {
         SerialEvent::RecvBytes(x) => { println!("SerialEvent::RecvBytes {:?}", x);  },
     });
 
+    let mut serial_output = Mapper::new(move |x| match x {
+        ButtonEvent::Pressed => SerialCmd::SendBytes(vec![0x41, 0x42, 0x43]),
+        _ => SerialCmd::SendBytes(vec![0x44, 0x45, 0x46]),
+    });
+
+    button_task.as_source() >> &pressed_led_on;// >> led_task;
+    button_task.as_source() >> &serial_output;// >> serial_task;
+    serial_task.as_source() >> &serial_input;
+
+    button_task.add_handler(serial_output.handler());
+    serial_output.add_handler(serial_task.handler());
+
     button_task.add_handler(pressed_led_on.handler());
     pressed_led_on.add_handler(led_task.handler());
+
     serial_task.add_handler(serial_input.handler());
 
     select3(led_task.run(), button_task.run(), serial_task.run()).await;

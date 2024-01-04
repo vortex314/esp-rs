@@ -39,7 +39,7 @@ pub trait Sink<T> {
 }
 
 pub trait Source<T> {
-    fn add_handler(&mut self, handler: Box<dyn Handler<T>>);
+    fn add_handler(&self, handler: Box<dyn Handler<T>>);
 }
 
 pub trait Flow<T, U>: Sink<T> + Source<U> {}
@@ -95,7 +95,7 @@ impl<'a,T:'static,U:'static> Sink<T> for Mapper<'a,T, U> where U: Clone +'static
 }
 
 impl<'a,T, U> Source<U> for Mapper<'a,T, U> {
-    fn add_handler(&mut self, handler: Box<dyn Handler<U>>) {
+    fn add_handler(&self, handler: Box<dyn Handler<U>>) {
         self.emitter.borrow_mut().add_handler(handler);
     }
 }
@@ -143,9 +143,7 @@ impl<T> Emitter<T> {
     }
 }*/
 
-pub fn link<T>(source: &mut dyn Source<T>, sink: &dyn Sink<T>) {
-    source.add_handler(sink.handler());
-}
+
 
 
 type TimerId = u32;
@@ -296,4 +294,15 @@ impl TimerScheduler {
 pub fn leak_static<T>( x:T ) -> &'static mut T  {
     let _x: &'static mut T = Box::leak(Box::new(x));
     _x
+}
+
+impl<T,U> Shr<&Mapper<'static,T,U>> for &dyn Source<T> where U: Clone + 'static,   T: 'static{
+    type Output = ();
+    fn shr(self, rhs: &Mapper<T,U>) -> Self::Output {
+        self.add_handler(rhs.handler());
+    }
+}
+
+pub fn link<T>(source: &mut dyn Source<T>, sink: &dyn Sink<T>) {
+    source.add_handler(sink.handler());
 }

@@ -73,10 +73,13 @@ impl Button {
             self.emitter.borrow().emit(event);
         }
     }
+    pub fn as_source(&self) -> &dyn Source<ButtonEvent> {
+        self as &dyn Source<ButtonEvent>
+    }
 }
 
 impl Source<ButtonEvent> for Button {
-    fn add_handler(&mut self, handler: Box<dyn Handler<ButtonEvent>>) {
+    fn add_handler(&self, handler: Box<dyn Handler<ButtonEvent>>) {
         self.emitter.borrow_mut().add_handler(handler);
     }
 }

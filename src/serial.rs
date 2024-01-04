@@ -20,7 +20,7 @@ use esp32_hal::{
     Uart, IO,
 };
 use nb::block;
-
+#[derive(Clone)]
 pub enum SerialCmd {
     SendBytes(Vec<u8>),
 }
@@ -44,7 +44,7 @@ impl Serial {
         uart0
             .set_rx_fifo_full_threshold(READ_BUF_SIZE as u16)
             .unwrap();
-        uart0.set_rx_fifo_full_threshold(30).unwrap();
+        uart0.set_rx_fifo_full_threshold(1).unwrap();
         uart0.listen_at_cmd();
         uart0.listen_rx_fifo_full();
         interrupt::enable(
@@ -60,6 +60,10 @@ impl Serial {
             txd_channel: &TXD_CHANNEL,
             emitter: Rc::new(RefCell::new(Emitter::new())),
         }
+    }
+
+    pub fn as_source(&self) -> &dyn Source<SerialEvent> {
+        self as &dyn Source<SerialEvent>
     }
 
     pub async fn run(&mut self) {
@@ -86,8 +90,23 @@ impl Serial {
     }
 }
 
+impl Sink<SerialCmd> for Serial {
+    fn handler(&self) -> Box<dyn Handler<SerialCmd>> {
+        let channel = self.txd_channel;
+        struct SerialHandler {
+            channel: &'static Channel<CriticalSectionRawMutex, SerialCmd, 3>,
+        }
+        impl Handler<SerialCmd> for SerialHandler {
+            fn handle(&self, cmd: SerialCmd) {
+                let _ = self.channel.try_send(cmd);
+            }
+        }
+        Box::new(SerialHandler { channel })
+    }
+}
+
 impl Source<SerialEvent> for Serial {
-    fn add_handler(&mut self, handler: Box<dyn Handler<SerialEvent>>) {
+    fn add_handler(&self, handler: Box<dyn Handler<SerialEvent>>) {
         self.emitter.borrow_mut().add_handler(handler);
     }
 }
