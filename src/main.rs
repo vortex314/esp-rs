@@ -2,7 +2,7 @@
 #![no_main]
 #![allow(unused_imports)]
 #![feature(type_alias_impl_trait)]
-
+#![allow(unused_mut)]
 mod limero;
 use alloc::vec;
 use limero::*;
@@ -71,8 +71,6 @@ async fn main(_spawner: Spawner) {
 
     let mut led_task = Led::new(led_pin.degrade(), 3);
     led_task.handler().handle(LedCmd::Blink(1000));
-    //led_task.run().await;
-    // button_task.run().await;
 
     let uart0 = Uart::new(peripherals.UART0, &clocks);
     let mut serial_task = Serial::new(uart0);
@@ -91,9 +89,11 @@ async fn main(_spawner: Spawner) {
         _ => SerialCmd::SendBytes(vec![0x44, 0x45, 0x46]),
     });
 
-    button_task.as_source() >> &pressed_led_on >> &led_task as &dyn Sink<LedCmd>;
+    button_task.as_source() >> &pressed_led_on ;// >> &led_task as &dyn Sink<LedCmd>;
     button_task.as_source() >> &serial_output;// >> serial_task;
     serial_task.as_source() >> &serial_input;
+
+    &serial_output.add_sink(serial_task);
 
     button_task.add_handler(serial_output.handler());
     serial_output.add_handler(serial_task.handler());

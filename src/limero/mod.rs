@@ -68,6 +68,9 @@ impl<'a,T, U> Mapper<'a,T, U> {
             phantom: PhantomData,
         }
     }
+    pub fn add_sink(&self, sink: impl Sink<U> + 'static) {
+        self.emitter.borrow_mut().add_handler(sink.handler());
+    }
 }
 
 impl<'a,T:'static,U:'static> Sink<T> for Mapper<'a,T, U> where U: Clone +'static{
@@ -297,19 +300,20 @@ pub fn leak_static<T>( x:T ) -> &'static mut T  {
 }
 
 impl<T,U> Shr<&Mapper<'static,T,U>> for &dyn Source<T> where U: Clone + 'static,   T: 'static{
-    type Output = &'static Mapper<'static,T,U>;
+    type Output =  ();
     fn shr(self, rhs: &Mapper<'static,T,U>) -> Self::Output {
         self.add_handler(rhs.handler());
-        rhs 
     }
 }
 
-impl<T,U> Shr<&dyn Sink<U>> for &Mapper<'static,T,U> where U: Clone + 'static,   T: 'static{
+impl<T> Shr<&dyn Sink<T>> for &dyn Source<T> {
     type Output = ();
-    fn shr(self, rhs: &dyn Sink<U>) -> Self::Output {
+    fn shr(self, rhs: &dyn Sink<T>) -> Self::Output {
         self.add_handler(rhs.handler());
     }
 }
+
+
 
 pub fn link<T>(source: &mut dyn Source<T>, sink: &dyn Sink<T>) {
     source.add_handler(sink.handler());

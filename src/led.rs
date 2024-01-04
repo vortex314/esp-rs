@@ -3,7 +3,6 @@ use crate::limero::*;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::sync::Arc;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::channel::DynamicReceiver;
 use embassy_sync::channel::DynamicSender;
