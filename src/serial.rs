@@ -61,7 +61,7 @@ impl Serial {
         loop {
             critical_section::with(|cs| {
                 let mut serial = SERIAL.borrow_ref_mut(cs);
-                let serial = serial.as_mut().unwrap();
+                let _serial = serial.as_mut().unwrap();
                 //   writeln!(serial, "Hello World! Send a single `#` character or send at least 30 characters and see the interrupts trigger.").ok();
             });
             yield_now().await;

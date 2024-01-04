@@ -3,7 +3,9 @@ use crate::limero::*;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::sync::Arc;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::channel::DynamicReceiver;
 use embassy_sync::channel::DynamicSender;
 use embassy_time::with_timeout;
 use embassy_time::Duration;
@@ -35,7 +37,7 @@ pub enum LedCmd {
     Blink(u32),
 }
 pub struct Led {
-    channel: Rc<RefCell<Channel<NoopRawMutex, LedCmd, 3>>>,
+    channel: &'static Channel<CriticalSectionRawMutex, LedCmd, 3>,
     state: LedCmd,
     interval_ms: u64,
     pin: AnyPin<Output<PushPull>>,
@@ -45,8 +47,10 @@ pub struct Led {
 
 impl Led {
     pub fn new(pin: AnyPin<Output<PushPull>>, _capacity: usize) -> Self {
+        let channel = leak_static(Channel::new());
         Led {
-            channel: Rc::new(RefCell::new(Channel::<NoopRawMutex, LedCmd, 3>::new())),
+            channel,
+
             state: LedCmd::On,
             interval_ms: 1000,
             pin,
@@ -73,7 +77,7 @@ impl Led {
         loop {
             let timeout_opt = self.scheduler.soonest();
             let timeout = timeout_opt.unwrap_or(Duration::from_millis(100));
-            let cmd_opt = with_timeout(timeout, self.channel.borrow().receiver().receive()).await;
+            let cmd_opt = with_timeout(timeout, self.channel.receiver().receive()).await;
             if cmd_opt.is_err() {
                 // timeout
                 match self.state {
@@ -110,22 +114,22 @@ impl Led {
 
 impl Handler<LedCmd> for Led {
     fn handle(&self, cmd: LedCmd) {
-        let sender = self.channel.borrow().try_send(cmd.clone());
+        let _ = self.channel.try_send(cmd.clone());
     }
 }
 
 impl Sink<LedCmd> for Led {
     fn handler(&self) -> Box<dyn Handler<LedCmd>> {
-        struct LedHandler {
-            channel: Rc<RefCell<Channel<NoopRawMutex, LedCmd, 3>>>,
-        }
-        impl<'a> Handler<LedCmd> for LedHandler {
-            fn handle(&self, cmd: LedCmd) {
-                let _ = self.channel.borrow().try_send(cmd.clone());
-            }
-        }
         Box::new(LedHandler {
-            channel: self.channel.clone(),
+            channel: self.channel,
         })
+    }
+}
+struct LedHandler<'a> {
+    channel : &'a Channel<CriticalSectionRawMutex, LedCmd, 3>
+}
+impl<'a> Handler<LedCmd> for LedHandler<'a> {
+    fn handle(&self, cmd: LedCmd) {
+        let _ = self.channel.try_send(cmd.clone());
     }
 }

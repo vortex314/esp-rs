@@ -84,7 +84,7 @@ async fn main(_spawner: Spawner) {
             info!("Button pressed : from main ");
             LedCmd::Blink(100)
         },
-        ButtonEvent::Released => LedCmd::Blink(50),
+        ButtonEvent::Released => LedCmd::Blink(500),
     });
 
     button_task.add_handler(pressed_led_on.handler());

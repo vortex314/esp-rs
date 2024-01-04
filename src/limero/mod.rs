@@ -292,3 +292,8 @@ impl TimerScheduler {
         }
     }
 }
+
+pub fn leak_static<T>( x:T ) -> &'static mut T  {
+    let _x: &'static mut T = Box::leak(Box::new(x));
+    _x
+}

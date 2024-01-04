@@ -52,7 +52,7 @@ pub struct Button {
 
 impl Button {
     pub fn new(mut pin: GpioPin<Input<PullDown>, 0>) -> Self {
-        pin.listen(Event::FallingEdge);
+        pin.listen(Event::AnyEdge);
 
         critical_section::with(|cs| {
             BUTTON_PIN.borrow_ref_mut(cs).replace(pin);
@@ -108,8 +108,18 @@ impl Sink<ButtonEvent> for Button {
 #[ram]
 #[interrupt]
 unsafe fn GPIO() {
-    (*BT.as_ptr()).handle(ButtonEvent::Pressed);
     critical_section::with(|cs| {
+        if BUTTON_PIN
+            .borrow_ref_mut(cs)
+            .as_mut()
+            .unwrap()
+            .is_low()
+            .unwrap()
+        {
+            (*BT.as_ptr()).handle(ButtonEvent::Pressed);
+        } else {
+            (*BT.as_ptr()).handle(ButtonEvent::Released);
+        };
         BUTTON_PIN
             .borrow_ref_mut(cs)
             .as_mut()
