@@ -91,7 +91,7 @@ async fn main(_spawner: Spawner) {
         _ => SerialCmd::SendBytes(vec![0x44, 0x45, 0x46]),
     });
 
-    button_task.as_source() >> &pressed_led_on;// >> led_task;
+    button_task.as_source() >> &pressed_led_on >> &led_task as &dyn Sink<LedCmd>;
     button_task.as_source() >> &serial_output;// >> serial_task;
     serial_task.as_source() >> &serial_input;
 

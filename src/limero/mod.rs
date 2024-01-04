@@ -297,8 +297,16 @@ pub fn leak_static<T>( x:T ) -> &'static mut T  {
 }
 
 impl<T,U> Shr<&Mapper<'static,T,U>> for &dyn Source<T> where U: Clone + 'static,   T: 'static{
+    type Output = &'static Mapper<'static,T,U>;
+    fn shr(self, rhs: &Mapper<'static,T,U>) -> Self::Output {
+        self.add_handler(rhs.handler());
+        rhs 
+    }
+}
+
+impl<T,U> Shr<&dyn Sink<U>> for &Mapper<'static,T,U> where U: Clone + 'static,   T: 'static{
     type Output = ();
-    fn shr(self, rhs: &Mapper<T,U>) -> Self::Output {
+    fn shr(self, rhs: &dyn Sink<U>) -> Self::Output {
         self.add_handler(rhs.handler());
     }
 }
