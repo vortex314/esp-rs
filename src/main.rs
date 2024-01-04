@@ -24,13 +24,13 @@ use embassy_time::{Duration, Timer};
 use esp32_hal::{
     clock::ClockControl,
     embassy::{self},
-    peripherals::{self,Peripherals},
+    gpio::Event,
+    interrupt,
+    peripherals::{self, Peripherals},
     prelude::*,
     timer::TimerGroup,
-    Delay,
-    IO, gpio::Event, interrupt,
     uart::{config::AtCmdConfig, UartRx, UartTx},
-    Uart,
+    Delay, Uart, IO,
 };
 
 use crate::limero::Sink;
@@ -48,9 +48,7 @@ fn init_heap() {
 }
 
 #[embassy_executor::task]
-async fn writer() {
-
-}
+async fn writer() {}
 
 #[main]
 async fn main(_spawner: Spawner) {
@@ -59,7 +57,6 @@ async fn main(_spawner: Spawner) {
     println!("main started");
     log::info!("Logger is setup");
 
-
     let peripherals = Peripherals::take();
     let system = peripherals.SYSTEM.split();
     let clocks = ClockControl::max(system.clock_control).freeze();
@@ -67,31 +64,32 @@ async fn main(_spawner: Spawner) {
     embassy::init(&clocks, timer_group0.timer0);
 
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-    let  led_pin = io.pins.gpio2.into_push_pull_output();
-    let  button_pin = io.pins.gpio0.into_pull_down_input();   
-    let  mut button_task = Button::new(button_pin);
+    let led_pin = io.pins.gpio2.into_push_pull_output();
+    let button_pin = io.pins.gpio0.into_pull_down_input();
+    let mut button_task = Button::new(button_pin);
 
     let mut led_task = Led::new(led_pin.degrade(), 3);
     led_task.handler().handle(LedCmd::Blink(1000));
     //led_task.run().await;
     // button_task.run().await;
 
-    let  uart0 = Uart::new(peripherals.UART0, &clocks);
-    let mut _serial_task = Serial::new(uart0);
+    let uart0 = Uart::new(peripherals.UART0, &clocks);
+    let mut serial_task = Serial::new(uart0);
 
-    let  mut pressed_led_on = Mapper::new(move |x| match x {
-        ButtonEvent::Pressed => {
-            info!("Button pressed : from main ");
-            LedCmd::Blink(100)
-        },
+    let mut pressed_led_on = Mapper::new(move |x| match x {
+        ButtonEvent::Pressed => LedCmd::Blink(100),
         ButtonEvent::Released => LedCmd::Blink(500),
+    });
+
+    let mut serial_input = Mapper::new(move |x| match x {
+        SerialEvent::RecvBytes(x) => { println!("SerialEvent::RecvBytes {:?}", x);  },
     });
 
     button_task.add_handler(pressed_led_on.handler());
     pressed_led_on.add_handler(led_task.handler());
+    serial_task.add_handler(serial_input.handler());
 
-    select3(led_task.run(), button_task.run(),_serial_task.run()).await;
-
+    select3(led_task.run(), button_task.run(), serial_task.run()).await;
 
     let mut delay = Delay::new(&clocks);
 

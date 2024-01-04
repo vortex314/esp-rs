@@ -24,7 +24,6 @@ use core::task::Context;
 use core::task::Poll;
 use core::task::Waker;
 
-//use embassy_futures::join::join;
 use embassy_futures::select::select;
 use embassy_sync::channel::Channel;
 use embassy_sync::channel::{self, Receiver, Sender};
@@ -37,7 +36,7 @@ pub enum LedCmd {
     Blink(u32),
 }
 pub struct Led {
-    channel: &'static Channel<CriticalSectionRawMutex, LedCmd, 3>,
+    channel: &'static Channel<NoopRawMutex, LedCmd, 3>,
     state: LedCmd,
     interval_ms: u64,
     pin: AnyPin<Output<PushPull>>,
@@ -126,7 +125,7 @@ impl Sink<LedCmd> for Led {
     }
 }
 struct LedHandler<'a> {
-    channel : &'a Channel<CriticalSectionRawMutex, LedCmd, 3>
+    channel : &'a Channel<NoopRawMutex, LedCmd, 3>
 }
 impl<'a> Handler<LedCmd> for LedHandler<'a> {
     fn handle(&self, cmd: LedCmd) {

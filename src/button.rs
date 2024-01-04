@@ -8,6 +8,8 @@ use core::task::Waker;
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::Channel;
 use embassy_sync::waitqueue::WakerRegistration;
 use embassy_time::with_timeout;
 use embedded_hal::can::Error;
@@ -42,12 +44,11 @@ pub enum ButtonEvent {
 }
 
 static BUTTON_PIN: Mutex<RefCell<Option<Gpio0<Input<PullDown>>>>> = Mutex::new(RefCell::new(None));
-static mut BT: MaybeUninit<ButtonHandler> = MaybeUninit::<ButtonHandler>::uninit();
+static CHANNEL : Channel<CriticalSectionRawMutex, ButtonEvent, 3> = Channel::new();
 
 pub struct Button {
-    pressed: bool,
     emitter: Rc<RefCell<Emitter<ButtonEvent>>>,
-    // pin: AnyPin<Input<PullDown>>,
+    channel : &'static Channel<CriticalSectionRawMutex, ButtonEvent, 3>,
 }
 
 impl Button {
@@ -58,50 +59,25 @@ impl Button {
             BUTTON_PIN.borrow_ref_mut(cs).replace(pin);
         });
         Button {
-            pressed: false,
             emitter: Rc::new(RefCell::new(Emitter::new())),
-            // pin,
+            channel : &CHANNEL,
         }
     }
     pub async fn run(&self) {
         info!("Button run");
         interrupt::enable(peripherals::Interrupt::GPIO, interrupt::Priority::Priority2).unwrap();
 
-        unsafe {
-            BT.as_mut_ptr().write(ButtonHandler {
-                emitter: self.emitter.clone(),
-            });
-        };
-
-        Timer::after(Duration::from_secs(1_000_000_000u64)).await;
-    }
-    pub fn emit(&mut self, event: ButtonEvent) {
-        self.emitter.borrow().emit(event);
+        loop {
+            let event = self.channel.receive().await;
+            info!("Button event {:?}", event);
+            self.emitter.borrow().emit(event);
+        }
     }
 }
 
 impl Source<ButtonEvent> for Button {
     fn add_handler(&mut self, handler: Box<dyn Handler<ButtonEvent>>) {
         self.emitter.borrow_mut().add_handler(handler);
-    }
-}
-
-unsafe impl Send for ButtonHandler {}
-struct ButtonHandler {
-    emitter: Rc<RefCell<Emitter<ButtonEvent>>>,
-}
-impl<'a> Handler<ButtonEvent> for ButtonHandler {
-    fn handle(&self, event: ButtonEvent) {
-        info!("ButtonHandler event {:?}", event);
-        let _ = self.emitter.borrow().emit(event);
-    }
-}
-
-impl Sink<ButtonEvent> for Button {
-    fn handler(&self) -> Box<dyn Handler<ButtonEvent>> {
-        Box::new(ButtonHandler {
-            emitter: self.emitter.clone(),
-        })
     }
 }
 
@@ -116,9 +92,9 @@ unsafe fn GPIO() {
             .is_low()
             .unwrap()
         {
-            (*BT.as_ptr()).handle(ButtonEvent::Pressed);
+            let _ = CHANNEL.try_send(ButtonEvent::Pressed);
         } else {
-            (*BT.as_ptr()).handle(ButtonEvent::Released);
+            let _ = CHANNEL.try_send(ButtonEvent::Released);
         };
         BUTTON_PIN
             .borrow_ref_mut(cs)
