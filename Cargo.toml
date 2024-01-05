@@ -25,9 +25,9 @@ embedded-hal="*"
 embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers","nightly"] }
 critical-section="*"
 static_cell = {version = "*", default-features = false, features = ["nightly"] } 
-
 [features]
-default=["embassy"]
+default=["embassy","colors"]
 embassy=[]
 tokio=[]
 alloc_error_handler = []
+colors=[]

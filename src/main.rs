@@ -3,6 +3,15 @@
 #![allow(unused_imports)]
 #![feature(type_alias_impl_trait)]
 #![allow(unused_mut)]
+/*
+["log",msec,"I",file, line, message   ] => log message
+["pub","topic",message] => message can be any json object
+["sub","topic"] => subscribe to topic
+["uns","topic"] => unsubscribe from topic
+["req","topic",message] => request message
+["rep","topic",message] => response message
+
+*/
 mod limero;
 use alloc::vec;
 use limero::*;
@@ -54,56 +63,65 @@ async fn writer() {}
 #[main]
 async fn main(_spawner: Spawner) {
     init_heap();
-    esp_println::logger::init_logger_from_env();
-    println!("main started");
-    log::info!("Logger is setup");
-
+    limero::logger::init_logger(log::LevelFilter::Trace);
+    //    esp_println::logger::init_logger_from_env();
     let peripherals = Peripherals::take();
     let system = peripherals.SYSTEM.split();
     let clocks = ClockControl::max(system.clock_control).freeze();
     let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
     embassy::init(&clocks, timer_group0.timer0);
 
+    log::info!("Logger is setup");
+
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
     let led_pin = io.pins.gpio2.into_push_pull_output();
     let button_pin = io.pins.gpio0.into_pull_down_input();
-    let mut button_task = Button::new(button_pin);
+    let mut button_on_board = Button::new(button_pin);
 
-    let mut led_task = Led::new(led_pin.degrade(), 3);
-    led_task.handler().handle(LedCmd::Blink(1000));
+    let mut led_on_board = Led::new(led_pin.degrade(), 3);
+    led_on_board.handler().handle(LedCmd::Blink(1000));
 
     let uart0 = Uart::new(peripherals.UART0, &clocks);
-    let mut serial_task = Serial::new(uart0);
+    let mut serial_uart0 = Serial::new(uart0);
 
-    let mut pressed_led_on = Mapper::new(move |x| match x {
+    let mut pressed_led_blink_fast = Mapper::new(move |x| match x {
         ButtonEvent::Pressed => LedCmd::Blink(100),
         ButtonEvent::Released => LedCmd::Blink(500),
     });
 
     let mut serial_input = Mapper::new(move |x| match x {
-        SerialEvent::RecvBytes(x) => { println!("SerialEvent::RecvBytes {:?}", x);  },
+        SerialEvent::RecvBytes(x) => {
+            println!("SerialEvent::RecvBytes {:?}", x);
+        }
     });
 
-    let mut serial_output = Mapper::new(move |x| match x {
-        ButtonEvent::Pressed => SerialCmd::SendBytes(vec![0x41, 0x42, 0x43]),
-        _ => SerialCmd::SendBytes(vec![0x44, 0x45, 0x46]),
+    let mut button_to_serial = Mapper::new(move |x| match x {
+        ButtonEvent::Pressed => SerialCmd::SendBytes("pressed\r\n".as_bytes().to_vec()),
+        _ => SerialCmd::SendBytes("released\r\n".as_bytes().to_vec()),
     });
 
-    button_task.as_source() >> &pressed_led_on ;// >> &led_task as &dyn Sink<LedCmd>;
-    button_task.as_source() >> &serial_output;// >> serial_task;
-    serial_task.as_source() >> &serial_input;
+    // let flow1 =  button >> mapper >> led ;
+    // select( flow1, flow2 ).await;
+    /*source(button_on_board)
+    .map(|x| {
+        if x == ButtonEvent::Pressed {
+            LedCmd::Blink(100)
+        } else {
+            LedCmd::Blink(500)
+        }
+    })
+    .sink(led_on_board);*/
 
-    &serial_output.add_sink(serial_task);
+    source(&button_on_board) >> &pressed_led_blink_fast >> &led_on_board;
+    source(&button_on_board) >> &button_to_serial >> &serial_uart0;
+    let _ = source(&serial_uart0) >> &serial_input;
 
-    button_task.add_handler(serial_output.handler());
-    serial_output.add_handler(serial_task.handler());
-
-    button_task.add_handler(pressed_led_on.handler());
-    pressed_led_on.add_handler(led_task.handler());
-
-    serial_task.add_handler(serial_input.handler());
-
-    select3(led_task.run(), button_task.run(), serial_task.run()).await;
+    select3(
+        led_on_board.run(),
+        button_on_board.run(),
+        serial_uart0.run(),
+    )
+    .await;
 
     let mut delay = Delay::new(&clocks);
 

@@ -29,6 +29,7 @@ use alloc::collections::BTreeMap;
 use embassy_time::{with_timeout, Duration, Instant, TimeoutError};
 use futures::Future;
 use log::{info, warn};
+pub mod logger;
 
 pub trait Handler<T> {
     fn handle(&self, cmd: T);
@@ -44,28 +45,28 @@ pub trait Source<T> {
 
 pub trait Flow<T, U>: Sink<T> + Source<U> {}
 
-pub struct Mapper<'a,T, U> {
+pub struct Mapper<T, U> {
     emitter: Rc<RefCell<Emitter<U>>>,
     func: Rc<dyn Fn(T) -> U>,
-    phantom: PhantomData<&'a ()>,
+   // phantom: PhantomData<&'a ()>,
 }
 
-impl<'a,T,U> Clone for Mapper<'a,T, U> {
+impl<T,U> Clone for Mapper<T, U> {
     fn clone(&self) -> Self {
         Self {
             emitter: self.emitter.clone(),
             func: self.func.clone(),
-            phantom: PhantomData,
+          //  phantom: PhantomData,
         }
     }
 }
 
-impl<'a,T, U> Mapper<'a,T, U> {
+impl<T, U> Mapper<T, U> {
     pub fn new(func: impl Fn(T) -> U +'static) -> Self {
         Self {
             emitter: Rc::new(RefCell::new(Emitter::new())),
             func: Rc::new(func),
-            phantom: PhantomData,
+          //  phantom: PhantomData,
         }
     }
     pub fn add_sink(&self, sink: impl Sink<U> + 'static) {
@@ -73,7 +74,7 @@ impl<'a,T, U> Mapper<'a,T, U> {
     }
 }
 
-impl<'a,T:'static,U:'static> Sink<T> for Mapper<'a,T, U> where U: Clone +'static{
+impl<T:'static,U:'static> Sink<T> for Mapper<T, U> where U: Clone +'static{
     fn handler(&self) -> Box<dyn Handler<T>> {
         let emitter = self.emitter.clone();
         let func = self.func.clone();
@@ -97,13 +98,13 @@ impl<'a,T:'static,U:'static> Sink<T> for Mapper<'a,T, U> where U: Clone +'static
     }
 }
 
-impl<'a,T, U> Source<U> for Mapper<'a,T, U> {
+impl<T, U> Source<U> for Mapper<T, U> {
     fn add_handler(&self, handler: Box<dyn Handler<U>>) {
         self.emitter.borrow_mut().add_handler(handler);
     }
 }
 
-impl<'a,T,U> Handler<T> for Mapper<'a,T, U>
+impl<T,U> Handler<T> for Mapper<T, U>
 where
     U: Clone,
 {
@@ -299,12 +300,12 @@ pub fn leak_static<T>( x:T ) -> &'static mut T  {
     _x
 }
 
-impl<T,U> Shr<&Mapper<'static,T,U>> for &dyn Source<T> where U: Clone + 'static,   T: 'static{
+/*impl<T,U> Shr<&Mapper<'static,T,U>> for &dyn Source<T> where U: Clone + 'static,   T: 'static{
     type Output =  ();
     fn shr(self, rhs: &Mapper<'static,T,U>) -> Self::Output {
         self.add_handler(rhs.handler());
     }
-}
+}*/
 
 impl<T> Shr<&dyn Sink<T>> for &dyn Source<T> {
     type Output = ();
@@ -313,8 +314,29 @@ impl<T> Shr<&dyn Sink<T>> for &dyn Source<T> {
     }
 }
 
+impl<'a,T,U> Shr<&'a Mapper<T,U>> for &'a dyn Source<T> 
+where U: Clone + 'static,   T: 'static {
+    type Output = &'a Mapper<T,U>;
+    fn shr(self, rhs: &'a Mapper<T,U>) -> Self::Output {
+        self.add_handler(rhs.handler());
+        rhs
+    }
+}
+
+impl<'a,T,U> Shr<&'a dyn Sink<U>> for &'a Mapper<T,U> 
+where U: Clone + 'static,   T: 'static {
+    type Output = ();
+    fn shr(self, rhs: &'a dyn Sink<U>) -> Self::Output {
+        self.add_handler(rhs.handler());
+    }
+}
+
 
 
 pub fn link<T>(source: &mut dyn Source<T>, sink: &dyn Sink<T>) {
     source.add_handler(sink.handler());
+}
+
+pub fn source<T>(x:&dyn Source<T>) -> &dyn Source<T> {
+    x as &dyn Source<T>
 }
