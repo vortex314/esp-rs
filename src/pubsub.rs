@@ -1,6 +1,6 @@
 use crate::limero::{leak_static, Emitter, Handler, Sink, Source};
 use alloc::boxed::Box;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::{rc::Rc, vec::Vec};
 use core::any::Any;
 use core::{cell::RefCell, fmt::Write, panic::PanicInfo};
@@ -28,12 +28,9 @@ trait SubHandler {
     fn handle(&self, topic: &str, payload: impl Deserialize<'static>);
 }
 
-trait MessageHandler {
-    fn handle(&self, topic: &str, payload: impl Deserialize<'static>);
-}
 
 trait PubSub {
-    fn subscribe(&self, topic: &str, handler: &dyn MessageHandler);
+    fn subscribe(&self, topic: &str, handler: &dyn SubHandler);
     fn unsubscribe(&self, topic: &str);
     fn publish<T>(&self, topic: &str, payload: &T)
     where
@@ -66,7 +63,7 @@ enum PubSubEvent {
 
 struct SubEntry {
     topic: String,
-    handler: Box<dyn Handler<T>>,
+    handler: Box<dyn SubHandler>,
 }
 
 pub struct PubSubJson {
@@ -163,8 +160,12 @@ impl Source<PubSubEvent> for PubSubJson {
     }
 }
 
+fn share(f:dyn Fn(String)->String) {
+    f(String::from("hello"));
+}
+
 impl PubSub for PubSubJson {
-    fn subscribe<T>(&self, topic: &str, handler: &dyn Handler<T>)  {
+    fn subscribe(&self, topic: &str, handler: &dyn SubHandler)  {
         self.subscribers
             .insert(String::from(topic), Box::new(handler));
     }
@@ -175,6 +176,11 @@ impl PubSub for PubSubJson {
     where
         T: ser::Serialize,
     {
+        let x1 = Rc::new(RefCell::new(String::from("hello")));
+        let handler = move | x:String | { x1.borrow().push_str(x.as_str()); };
+        share(handler); 
+        handler(String::from("world"));
+        
         let cmd = PubSubCmd::Publish {
             topic: String::from(topic),
             payload: payload as &dyn Any,
