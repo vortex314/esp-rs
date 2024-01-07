@@ -37,7 +37,7 @@ use embassy_time::Duration;
 use embassy_time::Timer;
 use static_cell::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone,PartialEq)]
 pub enum ButtonEvent {
     Released,
     Pressed,

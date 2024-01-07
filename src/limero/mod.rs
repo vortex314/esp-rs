@@ -316,6 +316,14 @@ where U: Clone + 'static,   T: 'static {
     }
 }
 
+impl<F,T,U> Shr< F > for &dyn Source<T> where F: Fn(T) -> U + 'static,   T: 'static,U : 'static + Clone{
+    type Output = Mapper<T,U>;
+    fn shr(self, rhs: F) -> Self::Output {
+        let mapper = Mapper::new(rhs);
+        self.add_handler(mapper.handler());
+        mapper
+    }
+}
 
 
 pub fn link<T>(source: &mut dyn Source<T>, sink: &dyn Sink<T>) {

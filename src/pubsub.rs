@@ -17,38 +17,73 @@ use embassy_time::Instant;
 use log::info;
 use serde::ser::{self, SerializeSeq};
 use serde::{Deserialize, Serialize, Serializer};
+use serde::de;
+
 use serde_json_core::ser::Error;
 use serde_json_core::{de::from_slice, ser::to_vec};
 //use serde_json_core::ser::Serializer;
 use core::str;
+
+trait SubHandler {
+    fn handle(&self, topic: &str, payload: impl Deserialize<'static>);
+}
+
+trait MessageHandler {
+    fn handle(&self, topic: &str, payload: impl Deserialize<'static>);
+}
+
+trait PubSub {
+    fn subscribe(&self, topic: &str, handler: &dyn MessageHandler);
+    fn unsubscribe(&self, topic: &str);
+    fn publish<T>(&self, topic: &str, payload: &T)
+    where
+        T: ser::Serialize;
+}
 
 trait Subscriber<T> {}
 #[derive(Debug, Clone)]
 enum PubSubCmd {
     Subscribe(String),
     Unsubscribe(String),
-    Publish { topic:String, payload: &'static dyn Any },
-    Rxd{ payload:String}
+    Publish {
+        topic: String,
+        payload: &'static dyn Any,
+    },
+    Rxd {
+        payload: String,
+    },
 }
 
 enum PubSubEvent {
-    Publish { topic: String, payload: &'static dyn Any },
-    Txd{ payload:String}
+    Publish {
+        topic: String,
+        payload: &'static dyn Any,
+    },
+    Txd {
+        payload: String,
+    },
 }
 
-pub struct PubSub {
+struct SubEntry {
+    topic: String,
+    handler: Box<dyn Handler<T>>,
+}
+
+pub struct PubSubJson {
     channel: &'static Channel<NoopRawMutex, PubSubCmd, 3>,
     emitter: Rc<RefCell<Emitter<PubSubEvent>>>,
     buffer: [u8; 128],
+    subscribers: Vec<SubEntry>,
 }
 
-impl PubSub {
+impl PubSubJson {
     pub fn new() -> Self {
         let channel = leak_static(Channel::new());
-        PubSub {
+        PubSubJson {
             channel,
             emitter: Rc::new(RefCell::new(Emitter::new())),
             buffer: [0u8; 128],
+            subscribers: Vec::new(),
         }
     }
 
@@ -66,7 +101,7 @@ impl PubSub {
     }
 
     pub async fn run(&mut self) {
-        #[derive(Serialize, Deserialize, Debug,Clone)]
+        #[derive(Serialize, Deserialize, Debug, Clone)]
         struct X<'a> {
             lat: f64,
             lon: f64,
@@ -79,7 +114,6 @@ impl PubSub {
             city: "Rimini",
             sea: true,
         };
-        let msg = PubSubCmd::Publish { topic: String::from("test"), payload:  &x.clone() };
 
         let cnt = self.serialize_publish("src/esp32/sys/time", &x).unwrap();
         info!(
@@ -99,12 +133,15 @@ impl PubSub {
                 PubSubCmd::Publish { topic, payload } => {
                     info!("publish {} {:?}", topic, payload);
                 }
+                PubSubCmd::Rxd { payload } => {
+                    info!("rxd {}", payload);
+                }
             }
         }
     }
 }
 
-impl Sink<PubSubCmd> for PubSub {
+impl Sink<PubSubCmd> for PubSubJson {
     fn handler(&self) -> Box<dyn Handler<PubSubCmd>> {
         struct PubSubHandler<'a> {
             channel: &'a Channel<NoopRawMutex, PubSubCmd, 3>,
@@ -120,8 +157,28 @@ impl Sink<PubSubCmd> for PubSub {
     }
 }
 
-impl Source<PubSubEvent> for PubSub {
+impl Source<PubSubEvent> for PubSubJson {
     fn add_handler(&self, handler: Box<dyn Handler<PubSubEvent>>) {
         self.emitter.borrow_mut().add_handler(handler);
+    }
+}
+
+impl PubSub for PubSubJson {
+    fn subscribe<T>(&self, topic: &str, handler: &dyn Handler<T>)  {
+        self.subscribers
+            .insert(String::from(topic), Box::new(handler));
+    }
+    fn unsubscribe(&self, topic: &str)  {
+        self.subscribers.remove(topic);        
+    }
+    fn publish<T>(&self, topic: &str, payload: &T) 
+    where
+        T: ser::Serialize,
+    {
+        let cmd = PubSubCmd::Publish {
+            topic: String::from(topic),
+            payload: payload as &dyn Any,
+        };
+        self.channel.try_send(cmd).expect("send failed");
     }
 }

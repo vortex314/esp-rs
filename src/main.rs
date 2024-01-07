@@ -80,7 +80,7 @@ async fn main(_spawner: Spawner) {
     let led_pin = io.pins.gpio2.into_push_pull_output();
     let button_pin = io.pins.gpio0.into_pull_down_input();
     let mut button_on_board = Button::new(button_pin);
-    let mut pubsub = PubSub::new();
+    let mut pubsub = PubSubJson::new();
 
     let mut led_on_board = Led::new(led_pin.degrade(), 3);
     led_on_board.handler().handle(LedCmd::Blink(1000));
@@ -104,17 +104,15 @@ async fn main(_spawner: Spawner) {
         _ => SerialCmd::SendBytes("released\r\n".as_bytes().to_vec()),
     });
 
-    // let flow1 =  button >> mapper >> led ;
-    // select( flow1, flow2 ).await;
-    /*source(button_on_board)
-    .map(|x| {
+    let f = |x: ButtonEvent| {
         if x == ButtonEvent::Pressed {
-            LedCmd::Blink(100)
+            LedCmd::Off
         } else {
-            LedCmd::Blink(500)
+            LedCmd::On
         }
-    })
-    .sink(led_on_board);*/
+    };
+
+    &(source(&button_on_board) >> f) >> &led_on_board;
 
     source(&button_on_board) >> &pressed_led_blink_fast >> &led_on_board;
     source(&button_on_board) >> &button_to_serial >> &serial_uart0;
