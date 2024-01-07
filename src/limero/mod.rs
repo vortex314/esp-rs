@@ -66,7 +66,6 @@ impl<T, U> Mapper<T, U> {
         Self {
             emitter: Rc::new(RefCell::new(Emitter::new())),
             func: Rc::new(func),
-          //  phantom: PhantomData,
         }
     }
     pub fn add_sink(&self, sink: impl Sink<U> + 'static) {
@@ -152,13 +151,6 @@ impl<T> Emitter<T> {
 
 type TimerId = u32;
 
-#[derive(Debug)]
-pub enum TimerCmd {
-    Gated(TimerId, Duration),
-    Interval(TimerId, Duration),
-    Once(TimerId, Instant),
-    TimerExpired(TimerId),
-}
 
 /// a infinite duration u64::MAX/2
 const fn forever() -> Duration {
@@ -299,13 +291,6 @@ pub fn leak_static<T>( x:T ) -> &'static mut T  {
     let _x: &'static mut T = Box::leak(Box::new(x));
     _x
 }
-
-/*impl<T,U> Shr<&Mapper<'static,T,U>> for &dyn Source<T> where U: Clone + 'static,   T: 'static{
-    type Output =  ();
-    fn shr(self, rhs: &Mapper<'static,T,U>) -> Self::Output {
-        self.add_handler(rhs.handler());
-    }
-}*/
 
 impl<T> Shr<&dyn Sink<T>> for &dyn Source<T> {
     type Output = ();

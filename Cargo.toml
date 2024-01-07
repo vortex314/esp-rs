@@ -25,6 +25,9 @@ embedded-hal="*"
 embassy-executor={ version = "0.3.3", default-features = false, features = ["executor-thread","integrated-timers","nightly"] }
 critical-section="*"
 static_cell = {version = "*", default-features = false, features = ["nightly"] } 
+serde ={ version="1.0.194", default-features = false,features = ["derive","alloc"]  }
+serde-json-core = { version ="0.5.1"}
+
 [features]
 default=["embassy","colors"]
 embassy=[]

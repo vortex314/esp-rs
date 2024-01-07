@@ -20,14 +20,17 @@ use led::*;
 mod button;
 use button::*;
 mod serial;
-use log::info;
 use serial::*;
+mod pubsub;
+use pubsub::*;
+
 extern crate alloc;
 use core::mem::MaybeUninit;
 use esp_backtrace as _;
 use esp_println::println;
 
-use embassy_futures::select::{self, select3};
+use embassy_futures::select::{self, select3, select4};
+use log::info;
 
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
@@ -77,6 +80,7 @@ async fn main(_spawner: Spawner) {
     let led_pin = io.pins.gpio2.into_push_pull_output();
     let button_pin = io.pins.gpio0.into_pull_down_input();
     let mut button_on_board = Button::new(button_pin);
+    let mut pubsub = PubSub::new();
 
     let mut led_on_board = Led::new(led_pin.degrade(), 3);
     led_on_board.handler().handle(LedCmd::Blink(1000));
@@ -116,10 +120,11 @@ async fn main(_spawner: Spawner) {
     source(&button_on_board) >> &button_to_serial >> &serial_uart0;
     let _ = source(&serial_uart0) >> &serial_input;
 
-    select3(
+    select4(
         led_on_board.run(),
         button_on_board.run(),
         serial_uart0.run(),
+        pubsub.run(),
     )
     .await;
 

@@ -73,9 +73,6 @@ impl Button {
             self.emitter.borrow().emit(event);
         }
     }
-    pub fn as_source(&self) -> &dyn Source<ButtonEvent> {
-        self as &dyn Source<ButtonEvent>
-    }
 }
 
 impl Source<ButtonEvent> for Button {
